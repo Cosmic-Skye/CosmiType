@@ -237,6 +237,44 @@ function getRandomWords(wordsArray, count) {
 }
 
 /**
+ * Function to show incorrect word display
+ * @param {string} typedWord - The word the user typed
+ */
+function showErrorWord(typedWord) {
+    const errorDisplay = document.getElementById('errorDisplay');
+    
+    // Create error element
+    const errorElement = document.createElement('div');
+    errorElement.className = 'error-word';
+    errorElement.textContent = typedWord;
+    
+    // Push existing errors down BEFORE adding the new one
+    const existingErrors = errorDisplay.querySelectorAll('.error-word');
+    existingErrors.forEach((error, index) => {
+        const currentTop = parseInt(error.style.top || '0');
+        error.style.top = `${currentTop + 25}px`;
+        // Adjust z-index so older errors are behind newer ones
+        error.style.zIndex = 100 - index;
+    });
+    
+    // Add new error at the top with highest z-index
+    errorElement.style.top = '0px';
+    errorElement.style.zIndex = '101';
+    errorDisplay.appendChild(errorElement);
+    
+    
+    // Remove the element after animation completes
+    setTimeout(() => {
+        errorElement.remove();
+    }, 2400);
+    
+    // Clean up old errors that might have accumulated
+    if (errorDisplay.children.length > 5) {
+        errorDisplay.removeChild(errorDisplay.firstChild);
+    }
+}
+
+/**
  * Function to check user input and update statistics
  * This function is called every time the user types in the input field.
  * It checks if the typed word is correct, updates statistics, and manages the display of words.
@@ -245,6 +283,14 @@ function getRandomWords(wordsArray, count) {
 function checkInput(value) {
     if (value.endsWith(' ')) {
         let typedWord = value.trim();
+        
+        // Ignore if no actual characters were typed
+        if (typedWord.length === 0) {
+            // Clear the input and return without processing
+            document.getElementById('wordInput').value = '';
+            return;
+        }
+        
         let correctWord = currentWords[wordIndex];
 
         let wordEnd = Date.now();
@@ -264,6 +310,10 @@ function checkInput(value) {
             document.getElementById(`line${lineIndex}word${wordIndex}`).classList.add('correct');
         } else {
             document.getElementById(`line${lineIndex}word${wordIndex}`).classList.add('incorrect');
+            // Show the error display only if there was actual content
+            if (typedWord.length > 0) {
+                showErrorWord(typedWord);
+            }
         }
 
         // Update last ten correct attempts
@@ -932,7 +982,13 @@ window.onload = function() {
     
     // Add keydown listener as backup for space key
     wordInput.addEventListener('keydown', function(event) {
-        if (event.key === ' ' && this.value.trim() !== '') {
+        if (event.key === ' ') {
+            // Prevent space if input is empty or only whitespace
+            if (this.value.trim().length === 0) {
+                event.preventDefault();
+                return;
+            }
+            
             // Process the word if space is pressed and there's content
             setTimeout(() => {
                 if (this.value.endsWith(' ')) {

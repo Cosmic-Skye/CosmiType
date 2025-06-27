@@ -118,6 +118,7 @@ h1 {
     color: #cdd6f4;
     margin-top: 20px;
     transition: all 0.3s ease;
+    box-sizing: border-box;
 }
 
 #wordInput:focus {
@@ -749,4 +750,50 @@ h1 {
 
 .modal.show {
     display: block;
+}
+
+/* Error Display Styles */
+#errorDisplay {
+    position: relative;
+    margin-top: 10px;
+    min-height: 30px;
+    width: 40%;
+    text-align: left;
+    box-sizing: border-box;
+}
+
+.error-word {
+    position: absolute;
+    left: 15px;
+    color: rgba(243, 139, 168, 0.6);
+    font-size: 1.2em;
+    font-weight: 400;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    animation: fadeInError 0.2s ease-out forwards, fadeOutError 0.4s ease-out 2s forwards;
+    transition: top 0.3s ease-out;
+    white-space: nowrap;
+    pointer-events: none;
+    line-height: 1.2;
+}
+
+@keyframes fadeInError {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOutError {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(3px);
+    }
 }
