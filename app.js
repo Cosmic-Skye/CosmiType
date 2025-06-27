@@ -56,10 +56,15 @@ let originalWordArray = [...wordArray];
 // Add this global variable at the top of the file
 let isDefaultWordList = localStorage.getItem('isDefaultWordList') !== 'false';
 
+// If we have stored words and we're not using the default list, update wordArray
+if (!isDefaultWordList && storedWords) {
+    wordArray = Object.keys(words);
+}
+
 const defaultLongestUntypedWordChance = 10;
 let longestUntypedWordChance = parseInt(localStorage.getItem('longestUntypedWordChance')) || defaultLongestUntypedWordChance;
 
-// Initialize wordBuffer with all words from wordArray
+// Initialize wordBuffer with all words from wordArray (which may have been updated from stored words)
 let wordBuffer = [...wordArray];
 
 // Load any saved buffer from localStorage
@@ -638,6 +643,39 @@ function filterWords(words) {
     });
 }
 
+// Function to show custom modal
+function showCustomModal(newWordSet) {
+    const modal = document.getElementById('customModal');
+    const yesBtn = document.getElementById('modalYes');
+    const noBtn = document.getElementById('modalNo');
+    
+    // Show the modal
+    modal.classList.add('show');
+    
+    // Handle Yes button
+    yesBtn.onclick = function() {
+        modal.classList.remove('show');
+        // Only keep words from the uploaded set
+        updateWordSet(newWordSet, true);
+    };
+    
+    // Handle No button
+    noBtn.onclick = function() {
+        modal.classList.remove('show');
+        // Merge with existing words
+        updateWordSet(newWordSet, false);
+    };
+    
+    // Close modal when clicking outside
+    modal.onclick = function(event) {
+        if (event.target === modal) {
+            modal.classList.remove('show');
+            // Default to merge if user closes modal
+            updateWordSet(newWordSet, false);
+        }
+    };
+}
+
 // Modify the handleFileUpload function
 function handleFileUpload(event) {
     const file = event.target.files[0];
@@ -668,7 +706,15 @@ function handleFileUpload(event) {
                 words = filterWords(words);
                 
                 const newWordSet = Array.from(new Set(words)); // Remove duplicates
-                updateWordSet(newWordSet);
+                
+                // Check if this is the first custom upload (still using default word list)
+                if (isDefaultWordList) {
+                    // First upload - show custom modal
+                    showCustomModal(newWordSet);
+                } else {
+                    // Subsequent upload - just add new words without asking
+                    updateWordSet(newWordSet, false);
+                }
                 
                 // Set isDefaultWordList to false and enable the restore button
                 isDefaultWordList = false;
@@ -681,36 +727,84 @@ function handleFileUpload(event) {
         };
         reader.readAsText(file);
     }
+    // Reset the file input so the same file can be selected again
+    event.target.value = '';
 }
 
-function updateWordSet(newWordSet) {
+function updateWordSet(newWordSet, removeDefaultWords = false) {
     if (newWordSet.length === 0) {
         alert("No valid words found in the file. The word set will not be updated.");
         return;
     }
 
     let tempWords = {...words, ...removedWords};
+    let newWordsAdded = 0;
     
-    removedWords = {};
-    Object.keys(tempWords).forEach(word => {
-        if (!newWordSet.includes(word)) {
-            removedWords[word] = tempWords[word];
-        }
-    });
-    
-    wordArray = newWordSet;
-    words = {};
-    wordArray.forEach(word => {
-        words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: []};
-    });
+    if (removeDefaultWords) {
+        // Only keep words from the new set
+        removedWords = {};
+        
+        // Move all existing words that aren't in the new set to removedWords
+        Object.keys(tempWords).forEach(word => {
+            if (!newWordSet.includes(word)) {
+                removedWords[word] = tempWords[word];
+            }
+        });
+        
+        // Set wordArray to only the new words
+        wordArray = newWordSet;
+        
+        // Create words object with only the uploaded words
+        words = {};
+        wordArray.forEach(word => {
+            words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: []};
+        });
+        
+        // Update wordBuffer to only include new words
+        wordBuffer = [...wordArray];
+        
+        // Calculate new words added
+        newWordsAdded = newWordSet.filter(word => !tempWords[word]).length;
+    } else {
+        // Merge with existing words
+        removedWords = {};
+        
+        // Track which words are actually new
+        const existingWords = new Set(wordArray);
+        newWordsAdded = newWordSet.filter(word => !existingWords.has(word)).length;
+        
+        // Add new words to existing wordArray
+        const mergedSet = Array.from(new Set([...wordArray, ...newWordSet]));
+        wordArray = mergedSet;
+        
+        // Update words object to include all words
+        words = {};
+        wordArray.forEach(word => {
+            words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: []};
+        });
+        
+        // Update wordBuffer with merged set
+        wordBuffer = [...wordArray];
+    }
     
     localStorage.setItem('words', JSON.stringify(words));
     localStorage.setItem('removedWords', JSON.stringify(removedWords));
+    localStorage.setItem('wordBuffer', JSON.stringify(wordBuffer));
+    
     displayWords();
     displayStats();
-    alert(`Word set updated with ${newWordSet.length} words.`);
-
     checkIfDefaultWordSet();
+    
+    // Show alert after all operations are complete
+    if (removeDefaultWords) {
+        alert(`Word set replaced with ${newWordSet.length} words.`);
+    } else {
+        if (newWordsAdded > 0) {
+            alert(`Added ${newWordsAdded} new words.`);
+        } else {
+            alert(`No new words added. All words in the file already exist.`);
+        }
+    }
 }
 
 // Modify the restoreOriginalSet function
