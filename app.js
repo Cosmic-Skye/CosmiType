@@ -60,7 +60,7 @@ const defaultLongestUntypedWordChance = 10;
 let longestUntypedWordChance = parseInt(localStorage.getItem('longestUntypedWordChance')) || defaultLongestUntypedWordChance;
 
 // Initialize wordBuffer with all words from wordArray
-wordBuffer = [...wordArray];
+let wordBuffer = [...wordArray];
 
 // Load any saved buffer from localStorage
 let storedBuffer = localStorage.getItem('wordBuffer');
@@ -141,6 +141,9 @@ function displayWords() {
     let wordsContainer = document.getElementById('wordsContainer');
     wordsContainer.innerHTML = ''; // Clear the words container
     
+    // Reset container width before adding new content
+    wordsContainer.style.width = '';
+    
     // Get the slowest words
     selectedSlowWords = getSlowestWords(slowWordsNum);
     
@@ -169,8 +172,10 @@ function displayWords() {
         wordsContainer.appendChild(wordLine);
     });
 
-    // Adjust container size if necessary
-    adjustContainerSize(wordsContainer);
+    // Adjust container size after a short delay to allow browser to calculate layout
+    setTimeout(() => {
+        adjustContainerSize(wordsContainer);
+    }, 0);
 
     // Set the start time for the first word
     wordStart = Date.now();
@@ -296,6 +301,7 @@ function checkInput(value) {
 
         // Clear input field and update statistics display
         document.getElementById('wordInput').value = '';
+        document.getElementById('wordInput').focus();
         displayStats();
     }
 }
@@ -816,9 +822,30 @@ function initializeLongestUntypedChanceContainer() {
 
 // Modify the window.onload function
 window.onload = function() {
-    document.getElementById('wordInput').focus();
-    document.getElementById('wordInput').addEventListener('input', function() {
-        checkInput(this.value);
+    const wordInput = document.getElementById('wordInput');
+    wordInput.focus();
+    
+    // Add input event listener with better error handling
+    wordInput.addEventListener('input', function() {
+        try {
+            checkInput(this.value);
+        } catch (error) {
+            console.error('Error in checkInput:', error);
+            // Ensure input remains functional even if there's an error
+            this.focus();
+        }
+    });
+    
+    // Add keydown listener as backup for space key
+    wordInput.addEventListener('keydown', function(event) {
+        if (event.key === ' ' && this.value.trim() !== '') {
+            // Process the word if space is pressed and there's content
+            setTimeout(() => {
+                if (this.value.endsWith(' ')) {
+                    checkInput(this.value);
+                }
+            }, 0);
+        }
     });
     document.getElementById('slowWordsInput').addEventListener('change', updateSlowWordsNum);
     document.getElementById('slowWordsInput').value = slowWordsNum;  // Set initial value from localStorage
