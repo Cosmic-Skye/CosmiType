@@ -296,6 +296,11 @@ function checkInput(value) {
         let wordEnd = Date.now();
         let wordTime = wordEnd - wordStart;
 
+        // Ensure the word exists in the statistics object
+        if (!words[correctWord]) {
+            words[correctWord] = {times: [], correct: 0, total: 0, lastTenCorrect: []};
+        }
+
         // Update word statistics
         words[correctWord].times.push(wordTime);
         words[correctWord].total++;
