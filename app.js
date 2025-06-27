@@ -733,23 +733,49 @@ function handleFileUpload(event) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const content = e.target.result;
+            let words = [];
+            
             try {
-                const jsonContent = JSON.parse(content);
-                let words = [];
-
-                if (jsonContent.type === "backup" && Array.isArray(jsonContent.history) && jsonContent.history.length > 0) {
-                    // Handle the previous format
-                    const chords = jsonContent.history[0][0].chords;
-                    words = chords.map(chord => {
-                        return String.fromCharCode(...chord[1].filter(code => code !== 0 && code < 128));
+                // Determine file type by extension
+                const fileName = file.name.toLowerCase();
+                
+                if (fileName.endsWith('.json')) {
+                    // Handle JSON format (CharaChorder chords)
+                    const jsonContent = JSON.parse(content);
+                    
+                    if (jsonContent.type === "backup" && Array.isArray(jsonContent.history) && jsonContent.history.length > 0) {
+                        // Handle the previous format
+                        const chords = jsonContent.history[0][0].chords;
+                        words = chords.map(chord => {
+                            return String.fromCharCode(...chord[1].filter(code => code !== 0 && code < 128));
+                        }).filter(word => word.length > 0);
+                    } else if (jsonContent.type === "chords" && Array.isArray(jsonContent.chords)) {
+                        // Handle the new format
+                        words = jsonContent.chords.map(chord => {
+                            return String.fromCharCode(...chord[1].filter(code => code !== 0 && code < 128));
+                        }).filter(word => word.length > 0);
+                    } else {
+                        throw new Error("Invalid JSON format");
+                    }
+                } else if (fileName.endsWith('.csv')) {
+                    // Handle CSV format - assume words are in first column
+                    const lines = content.trim().split('\n');
+                    words = lines.map(line => {
+                        const columns = line.split(',');
+                        return columns[0].trim();
                     }).filter(word => word.length > 0);
-                } else if (jsonContent.type === "chords" && Array.isArray(jsonContent.chords)) {
-                    // Handle the new format
-                    words = jsonContent.chords.map(chord => {
-                        return String.fromCharCode(...chord[1].filter(code => code !== 0 && code < 128));
+                } else if (fileName.endsWith('.tsv')) {
+                    // Handle TSV format - assume words are in first column
+                    const lines = content.trim().split('\n');
+                    words = lines.map(line => {
+                        const columns = line.split('\t');
+                        return columns[0].trim();
                     }).filter(word => word.length > 0);
+                } else if (fileName.endsWith('.txt')) {
+                    // Handle plain text - words separated by whitespace or newlines
+                    words = content.trim().split(/\s+/).filter(word => word.length > 0);
                 } else {
-                    throw new Error("Invalid file format");
+                    throw new Error("Unsupported file format");
                 }
 
                 // Apply the filter
@@ -772,7 +798,7 @@ function handleFileUpload(event) {
                 updateRestoreButton();
             } catch (error) {
                 console.error('Error parsing file:', error);
-                alert('Invalid file format. Please upload a valid backup or chords file.');
+                alert('Invalid file format. Please upload a valid file:\n• JSON: CharaChorder chords\n• TXT: Space or newline separated words\n• CSV/TSV: Words in first column');
             }
         };
         reader.readAsText(file);
