@@ -1,10 +1,10 @@
-![CosmicType Banner](https://cosmic-skye.github.io/CosmicType/banner.png)
+![CosmiType Banner](https://cosmic-skye.github.io/CosmiType/banner.png)
 
 ## 🌌 Embark on a Typing Adventure
 
-Welcome to CosmicType, where typing practice meets the cosmos! Our cutting-edge web application is designed to transform your typing skills from earthbound to interstellar. Whether you're a novice typist or a seasoned pro, CosmicType offers a personalized journey through the galaxy of words.
+Welcome to CosmiType, where typing practice meets the cosmos! Our cutting-edge web application is designed to transform your typing skills from earthbound to interstellar. Whether you're a novice typist or a seasoned pro, CosmiType offers a personalized journey through the galaxy of words.
 
-## 🎯 [Launch Your Typing Odyssey Now!](https://cosmic-skye.github.io/CosmicType)
+## 🎯 [Launch Your Typing Odyssey Now!](https://cosmic-skye.github.io/CosmiType)
 
 ## ✨ Stellar Features
 
@@ -18,9 +18,9 @@ Welcome to CosmicType, where typing practice meets the cosmos! Our cutting-edge 
 - 📊 **Enhanced Statistics**: View overall performance and individual word stats in a sleek table.
 - 🎲 **Least Typed Word Boost**: Set a custom chance for your least typed words to appear more frequently.
 
-## 🛸 How to Navigate CosmicType
+## 🛸 How to Navigate CosmiType
 
-1. 🖱️ Warp to the [CosmicType Launch Pad](https://cosmic-skye.github.io/CosmicType).
+1. 🖱️ Warp to the [CosmiType Launch Pad](https://cosmic-skye.github.io/CosmiType).
 2. 🚀 Initiate your typing sequence with the words on your viewscreen.
 3. 🔬 Our quantum computers analyze your keystrokes at the subatomic level.
 4. 🧠 The AI identifies your kryptonite words and beams them to you more frequently.
