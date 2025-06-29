@@ -89,7 +89,9 @@ function sortWordsByTypingFrequency() {
 }
 
 function getLongestUntypedWords(count = 10) {
-    return wordBuffer.slice(0, count);
+    // Filter out removed words before returning
+    const validWords = wordBuffer.filter(word => !removedWords[word]);
+    return validWords.slice(0, count);
 }
 
 // Add this helper function at the beginning of your file
@@ -373,21 +375,23 @@ function checkInput(value) {
  * @returns {Array} An array of objects containing statistics for each word
  */
 function calculateWordStats() {
-    return Object.keys(words).map((word) => {
-        let wordWeight = weightedWords ? word.length / 5 : 1;
-        let {times, correct, total, lastTenCorrect} = words[word];
-        let lastTenTimes = times.slice(-10);
-        let totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
+    return Object.keys(words)
+        .filter(word => !removedWords[word]) // Exclude removed words
+        .map((word) => {
+            let wordWeight = weightedWords ? word.length / 5 : 1;
+            let {times, correct, total, lastTenCorrect} = words[word];
+            let lastTenTimes = times.slice(-10);
+            let totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
 
-        let lastTenCorrectAttempts = lastTenCorrect ? lastTenCorrect.reduce((a, b) => a + b, 0) : 0;
-        let attemptsLastTen = lastTenTimes.length;
-        let errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
-        let averageWPM = totalLastTenTimeInMinutes > 0
-            ? Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes))
-            : Infinity;
+            let lastTenCorrectAttempts = lastTenCorrect ? lastTenCorrect.reduce((a, b) => a + b, 0) : 0;
+            let attemptsLastTen = lastTenTimes.length;
+            let errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
+            let averageWPM = totalLastTenTimeInMinutes > 0
+                ? Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes))
+                : Infinity;
 
-        return { word, count: lastTenTimes.length, correct, total, averageWPM };
-    });
+            return { word, count: lastTenTimes.length, correct, total, averageWPM };
+        });
 }
 
 /**
@@ -594,9 +598,13 @@ function removeWord(word) {
         removedWords[word] = words[word];
         delete words[word];
         
+        // Remove from word buffer
+        wordBuffer = wordBuffer.filter(w => w !== word);
+        
         // Update localStorage
         localStorage.setItem('words', JSON.stringify(words));
         localStorage.setItem('removedWords', JSON.stringify(removedWords));
+        localStorage.setItem('wordBuffer', JSON.stringify(wordBuffer));
         
         // Set isDefaultWordList to false and enable the restore button
         isDefaultWordList = false;
