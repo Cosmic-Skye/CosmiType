@@ -391,7 +391,7 @@ function getWorstPairsForWord(word, wordAwpm) {
  */
 function getRandomWords(wordsArray, count) {
     let randomWords = [];
-    let lastWord = '';
+    // Use global lastWord to maintain consistency across lines
     const longestUntypedWords = getLongestUntypedWords();
 
     if (hardMode) {
@@ -424,32 +424,44 @@ function getRandomWords(wordsArray, count) {
                 const worstPairs = getWorstPairsForWord(selectedWord, wordAwpm);
                 
                 if (worstPairs.length > 0) {
-                    // Randomly select one of the worst pairs
-                    const selectedPair = worstPairs[Math.floor(Math.random() * Math.min(worstPairs.length, 10))];
-                    console.log(`[HARD MODE] Selected pair: "${selectedPair.pairKey}" with AWPM: ${selectedPair.awpm.toFixed(2)}`);
+                    // Try to find a pair that won't create a duplicate
+                    let pairFound = false;
+                    let attempts = 0;
+                    let selectedPair = null;
                     
-                    // Determine the paired word and order
-                    if (selectedPair.word1 === selectedWord) {
-                        // selectedWord is first, add both in order
-                        randomWords.push(selectedWord);
+                    while (!pairFound && attempts < Math.min(worstPairs.length, 10)) {
+                        selectedPair = worstPairs[Math.floor(Math.random() * Math.min(worstPairs.length, 10))];
+                        
+                        // Check if adding this pair would create a duplicate
+                        if (selectedPair.word1 !== lastWord) {
+                            pairFound = true;
+                        }
+                        attempts++;
+                    }
+                    
+                    if (pairFound && selectedPair) {
+                        console.log(`[HARD MODE] Selected pair: "${selectedPair.pairKey}" with AWPM: ${selectedPair.awpm.toFixed(2)}`);
+                        
+                        // Always add pairs in order: word1 then word2
+                        randomWords.push(selectedPair.word1);
                         if (i + 1 < count) {
                             randomWords.push(selectedPair.word2);
                             lastWord = selectedPair.word2;
                             i += 2;
                         } else {
-                            lastWord = selectedWord;
+                            lastWord = selectedPair.word1;
                             i += 1;
                         }
                     } else {
-                        // selectedWord is second, add paired word first
-                        randomWords.push(selectedPair.word1);
-                        if (i + 1 < count) {
+                        // Couldn't find a non-duplicate pair, just add the single word if it's not a duplicate
+                        if (selectedWord !== lastWord) {
+                            console.log(`[HARD MODE] No valid pair found, adding single word: "${selectedWord}"`);
                             randomWords.push(selectedWord);
                             lastWord = selectedWord;
-                            i += 2;
+                            i++;
                         } else {
-                            lastWord = selectedPair.word1;
-                            i += 1;
+                            // Skip this iteration and try again
+                            continue;
                         }
                     }
                 } else {
