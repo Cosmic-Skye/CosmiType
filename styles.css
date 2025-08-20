@@ -442,6 +442,8 @@ h1 {
     padding: 2px 4px;
     font-size: 18px; /* Increased from 14px to 16px */
     cursor: text; /* Add this line */
+    -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .focus-words-container::after {
