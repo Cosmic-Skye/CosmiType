@@ -662,6 +662,92 @@ h1 {
     visibility: visible;
 }
 
+/* Hard Mode Container Styles */
+.hard-mode-container {
+    position: relative;
+    background-color: #313244;
+    color: #cdd6f4;
+    border: none;
+    border-radius: 10px;
+    height: 40px;
+    width: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    padding-left: 13px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.hard-mode-container:hover {
+    background-color: #45475a;
+}
+
+.hard-mode-container label {
+    font-size: 17px;
+    margin-right: 15px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+#hardModeToggle {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #f9e2af;
+}
+
+.hard-mode-container::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 10px);
+    transform: translateY(-50%);
+    background-color: #45475a;
+    color: #cdd6f4;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    z-index: 1001;
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    height: 20px;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+}
+
+.hard-mode-container:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+.hard-mode-container::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-right-color: #45475a;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    pointer-events: none;
+}
+
+.hard-mode-container:hover::before {
+    opacity: 1;
+    visibility: visible;
+}
+
 /* Custom Modal Styles */
 .modal {
     display: none;

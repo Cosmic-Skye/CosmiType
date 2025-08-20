@@ -20,15 +20,91 @@
 // This array contains a list of common English words
 let wordArray = ["able", "about", "above", "add", "after", "again", "air", "all", "almost", "along", "also", "always", "an", "and", "animal", "another", "answer", "any", "are", "around", "at", "away", "back", "be", "because", "become", "been", "before", "began", "begin", "below", "between", "big", "book", "both", "boy", "bring", "build", "but", "button", "buy", "by", "cable", "call", "came", "can", "car", "carry", "change", "CharaChorder", "child", "children", "city", "close", "code", "come", "computer", "con", "consider", "could", "country", "course", "cut", "day", "develop", "did", "difference", "different", "do", "does", "don't", "down", "download", "each", "early", "earth", "eat", "end", "engineer", "enough", "even", "ever", "every", "example", "eye", "face", "fact", "family", "far", "fast", "father", "feel", "feet", "few", "fill", "find", "fine", "fire", "first", "follow", "food", "for", "form", "found", "four", "from", "general", "get", "girl", "give", "go", "gone", "good", "got", "govern", "great", "group", "grow", "had", "hand", "happen", "hard", "has", "have", "he", "head", "hear", "hello", "help", "her", "here", "hi", "high", "him", "his", "hit", "hold", "home", "hope", "house", "how", "however", "I'll", "I'm", "idea", "if", "important", "in", "increase", "interest", "into", "is", "isn't", "issue", "it", "it's", "just", "keep", "kind", "know", "land", "large", "last", "late", "later", "lead", "learn", "leave", "left", "let", "letter", "life", "light", "like", "line", "list", "little", "live", "load", "long", "look", "lose", "lot", "made", "make", "man", "many", "may", "me", "mean", "men", "menu", "might", "mile", "mind", "miss", "more", "most", "mother", "mountain", "move", "much", "must", "my", "name", "nation", "near", "need", "never", "new", "next", "nice", "night", "no", "not", "note", "nothing", "now", "number", "of", "off", "often", "oil", "old", "on", "once", "one", "only", "open", "or", "order", "other", "our", "out", "over", "own", "page", "paper", "part", "past", "people", "person", "picture", "place", "plan", "plant", "play", "point", "possible", "present", "print", "problem", "probably", "program", "public", "put", "question", "quick", "quickly", "quite", "read", "real", "really", "review", "right", "river", "run", "said", "same", "saw", "say", "school", "screen", "sea", "second", "see", "seem", "seen", "sentence", "set", "she", "should", "show", "side", "sin", "since", "site", "small", "so", "some", "something", "sometime", "song", "soon", "sound", "spell", "stand", "start", "state", "still", "stop", "store", "story", "study", "such", "super", "sure", "system", "take", "talk", "team", "tell", "than", "thank", "that", "the", "their", "them", "then", "there", "these", "they", "thing", "think", "this", "those", "though", "thought", "three", "through", "time", "tip", "to", "together", "too", "took", "top", "tree", "try", "turn", "two", "type", "under", "until", "up", "us", "use", "used", "very", "walk", "want", "was", "watch", "water", "way", "we", "week", "well", "went", "were", "what", "when", "where", "which", "while", "white", "who", "why", "wide", "will", "with", "without", "won't", "word", "work", "world", "would", "write", "year", "you", "young", "your"];
 
+// Constants - define before use
+const weightedWords = false;  // Flag to determine if word length should affect WPM calculation
+
 // Initialize an object to store word statistics
 let words = {};
 wordArray.forEach(word => {
-    words[word] = {times: [], correct: 0, total: 0};
+    words[word] = {times: [], correct: 0, total: 0, awpm: 0};
 });
 
 // Retrieve stored word data from localStorage, if available
 let storedWords = localStorage.getItem('words');
-words = storedWords ? JSON.parse(storedWords) : words;
+if (storedWords) {
+    words = JSON.parse(storedWords);
+    // Ensure all words have the awpm field and calculate if missing
+    for (let word in words) {
+        if (words[word].awpm === undefined) {
+            // Calculate AWPM for existing data
+            let wordWeight = weightedWords ? word.length / 5 : 1;
+            let {times, lastTenCorrect} = words[word];
+            let lastTenTimes = times.slice(-10);
+            
+            if (lastTenTimes.length === 0) {
+                words[word].awpm = 0;
+            } else {
+                let totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
+                let lastTenCorrectAttempts = lastTenCorrect ? lastTenCorrect.reduce((a, b) => a + b, 0) : 0;
+                let attemptsLastTen = lastTenTimes.length;
+                let errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
+                
+                if (totalLastTenTimeInMinutes > 0) {
+                    words[word].awpm = Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes));
+                } else {
+                    words[word].awpm = 0;
+                }
+            }
+        }
+    }
+    // Save the updated words with AWPM calculated
+    localStorage.setItem('words', JSON.stringify(words));
+}
+
+// Initialize word pairs variable before using it
+let wordPairs = {};
+
+// Initialize word pairs - only keep existing pairs that are still valid
+function initializeWordPairs() {
+    const allWords = Object.keys(words);
+    const validWords = new Set(allWords);
+    const newPairs = {};
+    let preservedCount = 0;
+    let removedCount = 0;
+    
+    // Only preserve existing pairs where both words are still in the word set
+    for (let pairKey in wordPairs) {
+        let [word1, word2] = pairKey.split('->');
+        if (validWords.has(word1) && validWords.has(word2)) {
+            newPairs[pairKey] = wordPairs[pairKey];
+            // Ensure awpm field exists for old data
+            if (newPairs[pairKey].awpm === undefined) {
+                newPairs[pairKey].awpm = 0;
+            }
+            preservedCount++;
+        } else {
+            removedCount++;
+        }
+    }
+    
+    wordPairs = newPairs;
+    console.log(`[WORD PAIRS] Initialization complete. Preserved: ${preservedCount}, Removed: ${removedCount}`);
+    // Only save if we have data to save
+    if (Object.keys(wordPairs).length > 0) {
+        localStorage.setItem('wordPairs', JSON.stringify(wordPairs));
+    }
+}
+
+// Load stored word pairs
+let storedWordPairs = localStorage.getItem('wordPairs');
+if (storedWordPairs) {
+    wordPairs = JSON.parse(storedWordPairs);
+    // Ensure all pairs exist for current word set
+    initializeWordPairs();
+} else {
+    // Initialize if no stored pairs
+    initializeWordPairs();
+}
 
 // Load removedWords from localStorage
 let storedRemovedWords = localStorage.getItem('removedWords');
@@ -36,7 +112,6 @@ let removedWords = storedRemovedWords ? JSON.parse(storedRemovedWords) : {};
 
 // Constants for application settings
 let slowWordsNum = parseInt(localStorage.getItem('slowWordsNum')) || 5;  // Default to 5 if not set
-const weightedWords = false;  // Flag to determine if word length should affect WPM calculation
 const wordsPerLine = 6;
 
 // Global variables
@@ -50,6 +125,11 @@ let lineIndex = 0; // Keep track of which line we're on
 let wordIndex = 0; // Keep track of which word we're on in the current line
 let selectedSlowWords = []; // New global variable to store the selected slow words
 let width = 200;
+
+// Hard mode variables
+let hardMode = localStorage.getItem('hardMode') === 'true';
+let lastTypedWord = '';  // Track the last typed word for pair tracking
+let lastWordStartTime = null;  // Track when the last word started being typed
 
 let originalWordArray = [...wordArray];
 
@@ -211,6 +291,76 @@ function adjustContainerSize(container) {
 let lastWord = '';
 
 /**
+ * Get the worst performing word pairs for a given word
+ * @param {string} word - The word to find pairs for
+ * @returns {Array} Array of worst performing pairs containing this word
+ */
+function getWorstPairsForWord(word) {
+    console.log(`[HARD MODE] Getting worst pairs for word: "${word}"`);
+    const relevantPairs = [];
+    const allWords = Object.keys(words).filter(w => !removedWords[w]);
+    
+    // Check existing pairs
+    for (let pairKey in wordPairs) {
+        let [word1, word2] = pairKey.split('->');
+        
+        // Skip pairs with removed words
+        if (removedWords[word1] || removedWords[word2]) continue;
+        
+        if (word1 === word || word2 === word) {
+            relevantPairs.push({
+                pairKey,
+                word1,
+                word2,
+                awpm: wordPairs[pairKey].awpm || 0
+            });
+        }
+    }
+    
+    // Add potential pairs that haven't been typed yet (awpm = 0)
+    for (let otherWord of allWords) {
+        // Check if pair exists in either direction
+        const pair1Key = `${word}->${otherWord}`;
+        const pair2Key = `${otherWord}->${word}`;
+        
+        if (!wordPairs[pair1Key] && !relevantPairs.find(p => p.pairKey === pair1Key)) {
+            relevantPairs.push({
+                pairKey: pair1Key,
+                word1: word,
+                word2: otherWord,
+                awpm: 0
+            });
+        }
+        
+        if (!wordPairs[pair2Key] && !relevantPairs.find(p => p.pairKey === pair2Key)) {
+            relevantPairs.push({
+                pairKey: pair2Key,
+                word1: otherWord,
+                word2: word,
+                awpm: 0
+            });
+        }
+    }
+    
+    // Sort by AWPM (0 is worst, then ascending)
+    relevantPairs.sort((a, b) => {
+        if (a.awpm === 0 && b.awpm === 0) {
+            // Both untested, randomize order
+            return Math.random() - 0.5;
+        }
+        return a.awpm - b.awpm;
+    });
+    
+    // Return worst 10 pairs
+    const worstPairs = relevantPairs.slice(0, 10);
+    console.log(`[HARD MODE] Found ${relevantPairs.length} total pairs, returning worst 10:`);
+    worstPairs.forEach((pair, i) => {
+        console.log(`  ${i+1}. "${pair.pairKey}" AWPM: ${pair.awpm.toFixed(2)}`);
+    });
+    return worstPairs;
+}
+
+/**
  * Function to get random words from an array
  * @param {Array} wordsArray - The array of words to choose from
  * @param {number} count - The number of words to return
@@ -221,20 +371,97 @@ function getRandomWords(wordsArray, count) {
     let lastWord = '';
     const longestUntypedWords = getLongestUntypedWords();
 
-    for (let i = 0; i < count; i++) {
-        let selectedWord;
-        do {
+    if (hardMode) {
+        // Hard mode: generate words with pairs
+        let i = 0;
+        while (i < count) {
+            let selectedWord;
+            
+            // Select a word from the slow words array
             if (Math.random() * 100 < longestUntypedWordChance && longestUntypedWords.length > 0) {
                 selectedWord = longestUntypedWords[Math.floor(Math.random() * longestUntypedWords.length)];
             } else {
                 let randomIndex = Math.floor(Math.random() * wordsArray.length);
                 selectedWord = wordsArray[randomIndex];
             }
-        } while (selectedWord === lastWord && wordsArray.length > 1);
+            
+            // Avoid repeating the same word
+            if (selectedWord === lastWord && wordsArray.length > 1) {
+                continue;
+            }
+            
+            // Check if this word is from longestUntypedWords
+            const isLongestUntyped = longestUntypedWords.includes(selectedWord);
+            
+            if (hardMode && !isLongestUntyped) {
+                console.log(`[HARD MODE] Processing word: "${selectedWord}" (not from longest untyped)`);
+                // Get worst pairs for this word
+                const worstPairs = getWorstPairsForWord(selectedWord);
+                
+                if (worstPairs.length > 0) {
+                    // Randomly select one of the worst pairs
+                    const selectedPair = worstPairs[Math.floor(Math.random() * Math.min(worstPairs.length, 10))];
+                    console.log(`[HARD MODE] Selected pair: "${selectedPair.pairKey}" with AWPM: ${selectedPair.awpm.toFixed(2)}`);
+                    
+                    // Determine the paired word and order
+                    if (selectedPair.word1 === selectedWord) {
+                        // selectedWord is first, add both in order
+                        randomWords.push(selectedWord);
+                        if (i + 1 < count) {
+                            randomWords.push(selectedPair.word2);
+                            lastWord = selectedPair.word2;
+                            i += 2;
+                        } else {
+                            lastWord = selectedWord;
+                            i += 1;
+                        }
+                    } else {
+                        // selectedWord is second, add paired word first
+                        randomWords.push(selectedPair.word1);
+                        if (i + 1 < count) {
+                            randomWords.push(selectedWord);
+                            lastWord = selectedWord;
+                            i += 2;
+                        } else {
+                            lastWord = selectedPair.word1;
+                            i += 1;
+                        }
+                    }
+                } else {
+                    // No pairs found, just add the word
+                    console.log(`[HARD MODE] No pairs found for "${selectedWord}", adding single word`);
+                    randomWords.push(selectedWord);
+                    lastWord = selectedWord;
+                    i++;
+                }
+            } else {
+                // Longest untyped word or not in hard mode - add normally
+                if (isLongestUntyped) {
+                    console.log(`[HARD MODE] Word "${selectedWord}" is from longest untyped, adding single word`);
+                }
+                randomWords.push(selectedWord);
+                lastWord = selectedWord;
+                i++;
+            }
+        }
+    } else {
+        // Normal mode: original logic
+        for (let i = 0; i < count; i++) {
+            let selectedWord;
+            do {
+                if (Math.random() * 100 < longestUntypedWordChance && longestUntypedWords.length > 0) {
+                    selectedWord = longestUntypedWords[Math.floor(Math.random() * longestUntypedWords.length)];
+                } else {
+                    let randomIndex = Math.floor(Math.random() * wordsArray.length);
+                    selectedWord = wordsArray[randomIndex];
+                }
+            } while (selectedWord === lastWord && wordsArray.length > 1);
 
-        randomWords.push(selectedWord);
-        lastWord = selectedWord;
+            randomWords.push(selectedWord);
+            lastWord = selectedWord;
+        }
     }
+    
     return randomWords;
 }
 
@@ -300,7 +527,7 @@ function checkInput(value) {
 
         // Ensure the word exists in the statistics object
         if (!words[correctWord]) {
-            words[correctWord] = {times: [], correct: 0, total: 0, lastTenCorrect: []};
+            words[correctWord] = {times: [], correct: 0, total: 0, lastTenCorrect: [], awpm: 0};
         }
 
         // Update word statistics
@@ -331,6 +558,79 @@ function checkInput(value) {
             words[correctWord].lastTenCorrect.shift();
         }
         words[correctWord].lastTenCorrect.push(isCorrect ? 1 : 0);
+        
+        // Calculate AWPM for this word
+        let wordWeight = weightedWords ? correctWord.length / 5 : 1;
+        let lastTenTimes = words[correctWord].times.slice(-10);
+        let totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
+        let lastTenCorrectAttempts = words[correctWord].lastTenCorrect.reduce((a, b) => a + b, 0);
+        let attemptsLastTen = lastTenTimes.length;
+        let errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
+        
+        if (attemptsLastTen === 0) {
+            words[correctWord].awpm = 0;
+        } else if (totalLastTenTimeInMinutes > 0) {
+            words[correctWord].awpm = Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes));
+        } else {
+            words[correctWord].awpm = 0;
+        }
+
+        // Track word pairs (including across lines)
+        if (lastTypedWord && lastWordStartTime !== null) {
+            let pairKey = `${lastTypedWord}->${correctWord}`;
+            let pairTime = wordEnd - lastWordStartTime;
+            
+            console.log(`[PAIR TRACKING] Pair: "${pairKey}", Time: ${pairTime}ms, Correct: ${isCorrect}`);
+            
+            // Create pair if it doesn't exist
+            if (!wordPairs[pairKey]) {
+                wordPairs[pairKey] = {times: [], correct: 0, total: 0, lastTenCorrect: [], awpm: 0};
+                console.log(`[PAIR TRACKING] Created new pair: "${pairKey}"`);
+            }
+            
+            // Update pair statistics
+            wordPairs[pairKey].times.push(pairTime);
+            wordPairs[pairKey].total++;
+            
+            // Track correctness
+            if (isCorrect) {
+                wordPairs[pairKey].correct++;
+            }
+            
+            // Update last ten correct attempts for pairs
+            if (!wordPairs[pairKey].lastTenCorrect) {
+                wordPairs[pairKey].lastTenCorrect = [];
+            }
+            if (wordPairs[pairKey].lastTenCorrect.length >= 10) {
+                wordPairs[pairKey].lastTenCorrect.shift();
+            }
+            wordPairs[pairKey].lastTenCorrect.push(isCorrect ? 1 : 0);
+            
+            // Calculate AWPM for this pair
+            let pairWeight = weightedWords ? ((lastTypedWord.length + correctWord.length) / 2) / 5 : 1;
+            let lastTenPairTimes = wordPairs[pairKey].times.slice(-10);
+            let totalPairTimeInMinutes = lastTenPairTimes.reduce((a, b) => a + b, 0) / 60000;
+            let lastTenPairCorrect = wordPairs[pairKey].lastTenCorrect.reduce((a, b) => a + b, 0);
+            let pairAttemptsLastTen = lastTenPairTimes.length;
+            let pairErrors = pairAttemptsLastTen - lastTenPairCorrect;
+            
+            if (pairAttemptsLastTen === 0) {
+                wordPairs[pairKey].awpm = 0;
+            } else if (totalPairTimeInMinutes > 0) {
+                wordPairs[pairKey].awpm = Math.max(0, ((pairWeight * pairAttemptsLastTen) / totalPairTimeInMinutes) - (pairErrors / totalPairTimeInMinutes));
+            } else {
+                wordPairs[pairKey].awpm = 0;
+            }
+            
+            console.log(`[PAIR TRACKING] Updated AWPM for "${pairKey}": ${wordPairs[pairKey].awpm.toFixed(2)}`);
+            
+            // Save updated word pair data to localStorage
+            localStorage.setItem('wordPairs', JSON.stringify(wordPairs));
+        }
+        
+        // Update tracking variables for next pair
+        lastTypedWord = correctWord;
+        lastWordStartTime = wordStart;
 
         // Save updated word data to localStorage
         localStorage.setItem('words', JSON.stringify(words));
@@ -378,19 +678,9 @@ function calculateWordStats() {
     return Object.keys(words)
         .filter(word => !removedWords[word]) // Exclude removed words
         .map((word) => {
-            let wordWeight = weightedWords ? word.length / 5 : 1;
-            let {times, correct, total, lastTenCorrect} = words[word];
-            let lastTenTimes = times.slice(-10);
-            let totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
-
-            let lastTenCorrectAttempts = lastTenCorrect ? lastTenCorrect.reduce((a, b) => a + b, 0) : 0;
-            let attemptsLastTen = lastTenTimes.length;
-            let errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
-            let averageWPM = totalLastTenTimeInMinutes > 0
-                ? Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes))
-                : Infinity;
-
-            return { word, count: lastTenTimes.length, correct, total, averageWPM };
+            let {correct, total, awpm} = words[word];
+            // Use the precalculated AWPM (0 for untyped words)
+            return { word, count: words[word].times.slice(-10).length, correct, total, averageWPM: awpm || 0 };
         });
 }
 
@@ -411,9 +701,9 @@ function getSlowestWords(count) {
     console.log('Word stats calculated and sorted:', wordStats);
 
     let slowestWords = [];
-    // Separate untyped words (Infinity WPM) from typed words
-    let untypedWords = wordStats.filter(w => w.averageWPM === Infinity).map(w => w.word);
-    let typedWords = wordStats.filter(w => w.averageWPM !== Infinity).map(w => w.word);
+    // Separate untyped words (total === 0) from typed words
+    let untypedWords = wordStats.filter(w => w.total === 0).map(w => w.word);
+    let typedWords = wordStats.filter(w => w.total > 0).map(w => w.word);
     console.log('Untyped words:', untypedWords);
     console.log('Typed words:', typedWords);
 
@@ -556,7 +846,7 @@ function displayStats() {
         [
             word, 
             total, 
-            averageWPM === Infinity ? '-' : averageWPM.toFixed(2)
+            total === 0 ? '-' : averageWPM.toFixed(2)
         ].forEach(text => {
             let td = document.createElement('td');
             td.textContent = text;
@@ -693,8 +983,8 @@ function filterWords(words) {
         if (word.includes('DEL')) return false;
         
         // Additional filters:
-        // Remove words shorter than 2 characters or longer than 15 characters
-        if (word.length < 2 || word.length > 15) return false;
+        // Remove words shorter than 1 character or longer than 15 characters
+        if (word.length < 1 || word.length > 15) return false;
         
         // Remove words that are all uppercase (likely abbreviations)
         if (word === word.toUpperCase() && word.length > 1) return false;
@@ -743,6 +1033,7 @@ function showCustomModal(newWordSet) {
 function handleFileUpload(event) {
     const file = event.target.files[0];
     if (file) {
+        console.log(`[FILE UPLOAD] Processing file: ${file.name}`);
         const reader = new FileReader();
         reader.onload = function(e) {
             const content = e.target.result;
@@ -792,9 +1083,14 @@ function handleFileUpload(event) {
                 }
 
                 // Apply the filter
+                const beforeFilter = words.length;
                 words = filterWords(words);
+                const afterFilter = words.length;
+                console.log(`[FILE UPLOAD] Words before filter: ${beforeFilter}, after filter: ${afterFilter}`);
                 
                 const newWordSet = Array.from(new Set(words)); // Remove duplicates
+                console.log(`[FILE UPLOAD] Unique words after deduplication: ${newWordSet.length}`);
+                console.log(`[FILE UPLOAD] Sample words:`, newWordSet.slice(0, 10));
                 
                 // Check if this is the first custom upload (still using default word list)
                 if (isDefaultWordList) {
@@ -846,7 +1142,7 @@ function updateWordSet(newWordSet, removeDefaultWords = false) {
         // Create words object with only the uploaded words
         words = {};
         wordArray.forEach(word => {
-            words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: []};
+            words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: [], awpm: 0};
         });
         
         // Update wordBuffer to only include new words
@@ -869,12 +1165,15 @@ function updateWordSet(newWordSet, removeDefaultWords = false) {
         // Update words object to include all words
         words = {};
         wordArray.forEach(word => {
-            words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: []};
+            words[word] = tempWords[word] || {times: [], correct: 0, total: 0, lastTenCorrect: [], awpm: 0};
         });
         
         // Update wordBuffer with merged set
         wordBuffer = [...wordArray];
     }
+    
+    // Reinitialize word pairs for the new word set
+    initializeWordPairs();
     
     localStorage.setItem('words', JSON.stringify(words));
     localStorage.setItem('removedWords', JSON.stringify(removedWords));
@@ -907,8 +1206,12 @@ function restoreOriginalSet() {
         wordArray.forEach(word => {
             if (tempWords[word]) {
                 words[word] = tempWords[word];
+                // Ensure awpm field exists
+                if (words[word].awpm === undefined) {
+                    words[word].awpm = 0;
+                }
             } else {
-                words[word] = {times: [], correct: 0, total: 0, lastTenCorrect: []};
+                words[word] = {times: [], correct: 0, total: 0, lastTenCorrect: [], awpm: 0};
             }
         });
         
@@ -920,6 +1223,9 @@ function restoreOriginalSet() {
             }
         });
 
+        // Reinitialize word pairs for the restored word set
+        initializeWordPairs();
+        
         localStorage.setItem('words', JSON.stringify(words));
         localStorage.setItem('removedWords', JSON.stringify(removedWords));
         
@@ -1044,6 +1350,20 @@ window.onload = function() {
     initializeFocusWordsContainer();
     initializeLongestUntypedChanceContainer(); // Add this line
     
+    // Initialize hard mode toggle
+    const hardModeToggle = document.getElementById('hardModeToggle');
+    hardModeToggle.checked = hardMode;
+    hardModeToggle.addEventListener('change', function() {
+        hardMode = this.checked;
+        localStorage.setItem('hardMode', hardMode.toString());
+        console.log(`[HARD MODE] Toggled to: ${hardMode ? 'ON' : 'OFF'}`);
+        if (hardMode) {
+            console.log(`[HARD MODE] Total word pairs tracked: ${Object.keys(wordPairs).length}`);
+        }
+        displayWords();  // Refresh the word display
+        document.getElementById('wordInput').focus();
+    });
+    
     checkIfDefaultWordSet();
 
     document.getElementById('longestUntypedChanceInput').value = longestUntypedWordChance;
@@ -1080,5 +1400,12 @@ window.onload = function() {
 };
 
 // Initial display of words and statistics
+console.log('=== CosmicType Initialized ===');
+console.log(`[STARTUP] Word list size: ${wordArray.length} words`);
+console.log(`[STARTUP] Hard mode: ${hardMode ? 'ON' : 'OFF'}`);
+console.log(`[STARTUP] Word pairs tracked: ${Object.keys(wordPairs).length}`);
+console.log(`[STARTUP] Focus words: ${slowWordsNum}`);
+console.log(`[STARTUP] Longest untyped chance: ${longestUntypedWordChance}%`);
+console.log('===============================');
 displayWords();
 displayStats();
