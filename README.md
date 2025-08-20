@@ -1,4 +1,4 @@
-![CosmiType Banner](https://cosmic-skye.github.io/CosmiType/banner.png)
+![CosmiType Banner](https://type.cosmi.ai/banner.png?v=23351)
 
 ## 🚀 [Try it Live](https://cosmic-skye.github.io/CosmiType)
 
