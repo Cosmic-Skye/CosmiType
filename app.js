@@ -293,10 +293,11 @@ let lastWord = '';
 /**
  * Get the worst performing word pairs for a given word
  * @param {string} word - The word to find pairs for
+ * @param {number} wordAwpm - The AWPM of the word itself
  * @returns {Array} Array of worst performing pairs containing this word
  */
-function getWorstPairsForWord(word) {
-    console.log(`[HARD MODE] Getting worst pairs for word: "${word}"`);
+function getWorstPairsForWord(word, wordAwpm) {
+    console.log(`[HARD MODE] Getting worst pairs for word: "${word}" (word AWPM: ${wordAwpm.toFixed(2)})`);
     const relevantPairs = [];
     const allWords = Object.keys(words).filter(w => !removedWords[w]);
     
@@ -312,7 +313,8 @@ function getWorstPairsForWord(word) {
                 pairKey,
                 word1,
                 word2,
-                awpm: wordPairs[pairKey].awpm || 0
+                awpm: wordPairs[pairKey].awpm || 0,
+                times: wordPairs[pairKey].times || []
             });
         }
     }
@@ -328,7 +330,8 @@ function getWorstPairsForWord(word) {
                 pairKey: pair1Key,
                 word1: word,
                 word2: otherWord,
-                awpm: 0
+                awpm: 0,
+                times: []  // Mark as untyped
             });
         }
         
@@ -337,17 +340,37 @@ function getWorstPairsForWord(word) {
                 pairKey: pair2Key,
                 word1: otherWord,
                 word2: word,
-                awpm: 0
+                awpm: 0,
+                times: []  // Mark as untyped
             });
         }
     }
     
-    // Sort by AWPM (0 is worst, then ascending)
+    // Sort by priority:
+    // 1. Typed pairs with AWPM < word's AWPM (sorted by lowest AWPM first)
+    // 2. Untyped pairs (times.length === 0)
+    // 3. All other pairs sorted by AWPM
     relevantPairs.sort((a, b) => {
-        if (a.awpm === 0 && b.awpm === 0) {
-            // Both untested, randomize order
-            return Math.random() - 0.5;
+        const aIsUntyped = a.times.length === 0;
+        const bIsUntyped = b.times.length === 0;
+        const aIsSlowerThanWord = !aIsUntyped && a.awpm < wordAwpm;
+        const bIsSlowerThanWord = !bIsUntyped && b.awpm < wordAwpm;
+        
+        // Priority 1: Typed pairs slower than the word
+        if (aIsSlowerThanWord && !bIsSlowerThanWord) return -1;
+        if (!aIsSlowerThanWord && bIsSlowerThanWord) return 1;
+        if (aIsSlowerThanWord && bIsSlowerThanWord) {
+            return a.awpm - b.awpm; // Lower AWPM first
         }
+        
+        // Priority 2: Untyped pairs
+        if (aIsUntyped && !bIsUntyped && !bIsSlowerThanWord) return -1;
+        if (!aIsUntyped && bIsUntyped && !aIsSlowerThanWord) return 1;
+        if (aIsUntyped && bIsUntyped) {
+            return Math.random() - 0.5; // Randomize untyped pairs
+        }
+        
+        // Priority 3: Everything else sorted by AWPM
         return a.awpm - b.awpm;
     });
     
@@ -395,8 +418,10 @@ function getRandomWords(wordsArray, count) {
             
             if (hardMode && !isLongestUntyped) {
                 console.log(`[HARD MODE] Processing word: "${selectedWord}" (not from longest untyped)`);
+                // Get the word's AWPM
+                const wordAwpm = words[selectedWord] ? words[selectedWord].awpm || 0 : 0;
                 // Get worst pairs for this word
-                const worstPairs = getWorstPairsForWord(selectedWord);
+                const worstPairs = getWorstPairsForWord(selectedWord, wordAwpm);
                 
                 if (worstPairs.length > 0) {
                     // Randomly select one of the worst pairs
