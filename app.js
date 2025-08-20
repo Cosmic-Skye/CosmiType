@@ -1103,18 +1103,37 @@ function handleFileUpload(event) {
                     const lines = content.trim().split('\n');
                     words = lines.map(line => {
                         const columns = line.split(',');
-                        return columns[0].trim();
+                        let word = columns[0].trim();
+                        // Only remove quotes if they wrap the entire word
+                        if ((word.startsWith('"') && word.endsWith('"')) || 
+                            (word.startsWith("'") && word.endsWith("'"))) {
+                            word = word.slice(1, -1);
+                        }
+                        return word;
                     }).filter(word => word.length > 0);
                 } else if (fileName.endsWith('.tsv')) {
                     // Handle TSV format - assume words are in first column
                     const lines = content.trim().split('\n');
                     words = lines.map(line => {
                         const columns = line.split('\t');
-                        return columns[0].trim();
+                        let word = columns[0].trim();
+                        // Only remove quotes if they wrap the entire word
+                        if ((word.startsWith('"') && word.endsWith('"')) || 
+                            (word.startsWith("'") && word.endsWith("'"))) {
+                            word = word.slice(1, -1);
+                        }
+                        return word;
                     }).filter(word => word.length > 0);
                 } else if (fileName.endsWith('.txt')) {
                     // Handle plain text - words separated by whitespace or newlines
-                    words = content.trim().split(/\s+/).filter(word => word.length > 0);
+                    words = content.trim().split(/\s+/).map(word => {
+                        // Only remove quotes if they wrap the entire word
+                        if ((word.startsWith('"') && word.endsWith('"')) || 
+                            (word.startsWith("'") && word.endsWith("'"))) {
+                            word = word.slice(1, -1);
+                        }
+                        return word;
+                    }).filter(word => word.length > 0);
                 } else {
                     throw new Error("Unsupported file format");
                 }
