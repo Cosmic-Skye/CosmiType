@@ -1,6 +1,6 @@
 ![CosmiType Banner](https://type.cosmi.ai/banner.png?v=23351)
 
-## 🚀 [Try it Live](https://cosmic-skye.github.io/CosmiType)
+## 🚀 [Try it Live](https://type.cosmi.ai/)
 
 ## Features
 
@@ -12,7 +12,7 @@
 
 ## Quick Start
 
-**Online:** Visit [cosmic-skye.github.io/CosmiType](https://cosmic-skye.github.io/CosmiType)
+**Online:** Visit [https://type.cosmi.ai/](https://type.cosmi.ai/)
 
 **Local:**
 ```bash
