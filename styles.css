@@ -693,11 +693,14 @@ h1 {
     cursor: pointer;
 }
 
-#hardModeToggle {
-    width: 20px;
-    height: 20px;
+.hard-mode-container select {
+    background-color: #45475a;
+    color: #cdd6f4;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 15px;
     cursor: pointer;
-    accent-color: #f9e2af;
 }
 
 .hard-mode-container::after {
