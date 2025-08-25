@@ -27,9 +27,13 @@
             <label for="longestUntypedChanceInput">Longest Untyped %</label>
             <input type="number" id="longestUntypedChanceInput" min="0" max="100" value="">
         </div>
-        <div class="hard-mode-container" data-tooltip="Hard mode: Each word is paired with one of your slowest word transitions">
-            <label for="hardModeToggle">Hard Mode</label>
-            <input type="checkbox" id="hardModeToggle">
+        <div class="hard-mode-container" data-tooltip="Normal (single), Hard (pair), Brutal (double pair)">
+            <label for="modeSelect">Mode</label>
+            <select id="modeSelect">
+                <option value="normal">Normal</option>
+                <option value="hard">Hard</option>
+                <option value="brutal">Brutal</option>
+            </select>
         </div>
     </div>
     <div class="allContent">

@@ -126,8 +126,12 @@ let wordIndex = 0; // Keep track of which word we're on in the current line
 let selectedSlowWords = []; // New global variable to store the selected slow words
 let width = 200;
 
-// Hard mode variables
+// Hard/Brutal mode variables
 let hardMode = localStorage.getItem('hardMode') === 'true';
+// Introduce new mode key while preserving legacy hardMode
+let mode = localStorage.getItem('mode') || (hardMode ? 'hard' : 'normal');
+hardMode = mode !== 'normal';
+localStorage.setItem('mode', mode);
 let lastTypedWord = '';  // Track the last typed word for pair tracking
 let lastWordStartTime = null;  // Track when the last word started being typed
 
@@ -298,18 +302,15 @@ let lastWord = '';
  */
 function getWorstPairsForWord(word, wordAwpm) {
     console.log(`[HARD MODE] Getting worst pairs for word: "${word}" (word AWPM: ${wordAwpm.toFixed(2)})`);
-    const relevantPairs = [];
-    const allWords = Object.keys(words).filter(w => !removedWords[w]);
-    
-    // Check existing pairs
+    const limit = 10;
+
+    // 1) Gather only stored pairs (typed or stored-untyped) that include the word
+    const storedRelevant = [];
     for (let pairKey in wordPairs) {
         let [word1, word2] = pairKey.split('->');
-        
-        // Skip pairs with removed words
         if (removedWords[word1] || removedWords[word2]) continue;
-        
         if (word1 === word || word2 === word) {
-            relevantPairs.push({
+            storedRelevant.push({
                 pairKey,
                 word1,
                 word2,
@@ -318,69 +319,152 @@ function getWorstPairsForWord(word, wordAwpm) {
             });
         }
     }
-    
-    // Add potential pairs that haven't been typed yet (awpm = 0)
-    for (let otherWord of allWords) {
-        // Check if pair exists in either direction
-        const pair1Key = `${word}->${otherWord}`;
-        const pair2Key = `${otherWord}->${word}`;
-        
-        if (!wordPairs[pair1Key] && !relevantPairs.find(p => p.pairKey === pair1Key)) {
-            relevantPairs.push({
-                pairKey: pair1Key,
-                word1: word,
-                word2: otherWord,
-                awpm: 0,
-                times: []  // Mark as untyped
-            });
-        }
-        
-        if (!wordPairs[pair2Key] && !relevantPairs.find(p => p.pairKey === pair2Key)) {
-            relevantPairs.push({
-                pairKey: pair2Key,
-                word1: otherWord,
-                word2: word,
-                awpm: 0,
-                times: []  // Mark as untyped
-            });
+
+    // 2) Sort stored pairs by the same priority
+    function sortByPriority(arr) {
+        return arr.sort((a, b) => {
+            const aIsUntyped = a.times.length === 0;
+            const bIsUntyped = b.times.length === 0;
+            const aIsSlowerThanWord = !aIsUntyped && a.awpm < wordAwpm;
+            const bIsSlowerThanWord = !bIsUntyped && b.awpm < wordAwpm;
+            if (aIsSlowerThanWord && !bIsSlowerThanWord) return -1;
+            if (!aIsSlowerThanWord && bIsSlowerThanWord) return 1;
+            if (aIsSlowerThanWord && bIsSlowerThanWord) return a.awpm - b.awpm;
+            if (aIsUntyped && !bIsUntyped && !bIsSlowerThanWord) return -1;
+            if (!aIsUntyped && bIsUntyped && !aIsSlowerThanWord) return 1;
+            if (aIsUntyped && bIsUntyped) return Math.random() - 0.5;
+            return a.awpm - b.awpm;
+        });
+    }
+
+    const storedSorted = sortByPriority(storedRelevant);
+    const worstStored = storedSorted.slice(0, limit);
+
+    // 3) Build candidate list: start with stored worst, then synthesize untyped pairs up to limit
+    const candidates = [...worstStored];
+    if (candidates.length < limit) {
+        const allWords = Object.keys(words).filter(w => !removedWords[w] && w !== word);
+        const existingKeys = new Set(candidates.map(p => p.pairKey));
+        let attempts = 0;
+        const maxAttempts = Math.min(allWords.length * 3, 300); // safety cap
+        while (candidates.length < limit && attempts < maxAttempts) {
+            const otherWord = allWords[Math.floor(Math.random() * allWords.length)];
+            if (!otherWord) break;
+            const pair1Key = `${word}->${otherWord}`;
+            const pair2Key = `${otherWord}->${word}`;
+            // Randomize direction to diversify
+            const order = Math.random() < 0.5 ? [pair1Key, pair2Key] : [pair2Key, pair1Key];
+            for (const key of order) {
+                if (!existingKeys.has(key) && !wordPairs[key]) {
+                    const [w1, w2] = key.split('->');
+                    candidates.push({ pairKey: key, word1: w1, word2: w2, awpm: 0, times: [] });
+                    existingKeys.add(key);
+                    if (candidates.length >= limit) break;
+                }
+            }
+            attempts++;
         }
     }
-    
-    // Sort by priority:
-    // 1. Typed pairs with AWPM < word's AWPM (sorted by lowest AWPM first)
-    // 2. Untyped pairs (times.length === 0)
-    // 3. All other pairs sorted by AWPM
-    relevantPairs.sort((a, b) => {
-        const aIsUntyped = a.times.length === 0;
-        const bIsUntyped = b.times.length === 0;
-        const aIsSlowerThanWord = !aIsUntyped && a.awpm < wordAwpm;
-        const bIsSlowerThanWord = !bIsUntyped && b.awpm < wordAwpm;
-        
-        // Priority 1: Typed pairs slower than the word
-        if (aIsSlowerThanWord && !bIsSlowerThanWord) return -1;
-        if (!aIsSlowerThanWord && bIsSlowerThanWord) return 1;
-        if (aIsSlowerThanWord && bIsSlowerThanWord) {
-            return a.awpm - b.awpm; // Lower AWPM first
-        }
-        
-        // Priority 2: Untyped pairs
-        if (aIsUntyped && !bIsUntyped && !bIsSlowerThanWord) return -1;
-        if (!aIsUntyped && bIsUntyped && !aIsSlowerThanWord) return 1;
-        if (aIsUntyped && bIsUntyped) {
-            return Math.random() - 0.5; // Randomize untyped pairs
-        }
-        
-        // Priority 3: Everything else sorted by AWPM
-        return a.awpm - b.awpm;
-    });
-    
-    // Return worst 10 pairs
-    const worstPairs = relevantPairs.slice(0, 10);
-    console.log(`[HARD MODE] Found ${relevantPairs.length} total pairs, returning worst 10:`);
-    worstPairs.forEach((pair, i) => {
+
+    // 4) Log stored info like before (do NOT count synthesized in totals)
+    console.log(`[HARD MODE] Found ${storedRelevant.length} total pairs, returning worst ${Math.min(limit, storedRelevant.length)}:`);
+    worstStored.forEach((pair, i) => {
         console.log(`  ${i+1}. "${pair.pairKey}" AWPM: ${pair.awpm.toFixed(2)}`);
     });
-    return worstPairs;
+
+    return candidates;
+}
+
+/**
+ * Get worst pairs for a word in both directions separately.
+ * - left: x -> word
+ * - right: word -> z
+ * Uses the same priority order as getWorstPairsForWord.
+ * @param {string} word
+ * @param {number} wordAwpm
+ * @param {number|null} limitPerDirection - max items per direction; pass null for no limit
+ * @returns {{left: Array, right: Array}}
+ */
+function getWorstPairsForWordBothDirections(word, wordAwpm, limitPerDirection = 5) {
+    const leftStored = [];
+    const rightStored = [];
+    const allWords = Object.keys(words).filter(w => !removedWords[w] && w !== word);
+
+    // Collect stored pairs only (typed or stored-untyped)
+    for (let pairKey in wordPairs) {
+        let [word1, word2] = pairKey.split('->');
+        if (removedWords[word1] || removedWords[word2]) continue;
+        const pair = { pairKey, word1, word2, awpm: wordPairs[pairKey].awpm || 0, times: wordPairs[pairKey].times || [] };
+        if (word2 === word) {
+            leftStored.push(pair);
+        } else if (word1 === word) {
+            rightStored.push(pair);
+        }
+    }
+
+    // Sort helper using same priority order
+    function sortByPriority(arr) {
+        return arr.sort((a, b) => {
+            const aIsUntyped = a.times.length === 0;
+            const bIsUntyped = b.times.length === 0;
+            const aIsSlowerThanWord = !aIsUntyped && a.awpm < wordAwpm;
+            const bIsSlowerThanWord = !bIsUntyped && b.awpm < wordAwpm;
+            if (aIsSlowerThanWord && !bIsSlowerThanWord) return -1;
+            if (!aIsSlowerThanWord && bIsSlowerThanWord) return 1;
+            if (aIsSlowerThanWord && bIsSlowerThanWord) return a.awpm - b.awpm;
+            if (aIsUntyped && !bIsUntyped && !bIsSlowerThanWord) return -1;
+            if (!aIsUntyped && bIsUntyped && !aIsSlowerThanWord) return 1;
+            if (aIsUntyped && bIsUntyped) return Math.random() - 0.5;
+            return a.awpm - b.awpm;
+        });
+    }
+
+    const leftStoredSorted = sortByPriority(leftStored);
+    const rightStoredSorted = sortByPriority(rightStored);
+
+    const loggedLeft = limitPerDirection === null ? leftStoredSorted : leftStoredSorted.slice(0, limitPerDirection);
+    const loggedRight = limitPerDirection === null ? rightStoredSorted : rightStoredSorted.slice(0, limitPerDirection);
+
+    // Build actual candidate lists (fill with synthesized untyped to reach limit if needed)
+    const left = [...loggedLeft];
+    const right = [...loggedRight];
+
+    function fillWithUntyped(targetArr, makeKey) {
+        if (limitPerDirection === null) return;
+        const needed = limitPerDirection - targetArr.length;
+        if (needed <= 0) return;
+        const existingKeys = new Set(targetArr.map(p => p.pairKey));
+        let attempts = 0;
+        const maxAttempts = Math.min(allWords.length * 2, 200);
+        while (targetArr.length < limitPerDirection && attempts < maxAttempts) {
+            const idx = Math.floor(Math.random() * allWords.length);
+            const ow = allWords[idx];
+            const { key, word1, word2 } = makeKey(ow);
+            if (!wordPairs[key] && !existingKeys.has(key)) {
+                targetArr.push({ pairKey: key, word1, word2, awpm: 0, times: [] });
+                existingKeys.add(key);
+            }
+            attempts++;
+        }
+    }
+
+    fillWithUntyped(left, (ow) => ({ key: `${ow}->${word}`, word1: ow, word2: word }));
+    fillWithUntyped(right, (ow) => ({ key: `${word}->${ow}`, word1: word, word2: ow }));
+
+    // Logs: show stored counts and list stored worst up to limit; include stored untyped if present
+    const leftLimitText = limitPerDirection === null ? leftStored.length : Math.min(limitPerDirection, leftStored.length);
+    const rightLimitText = limitPerDirection === null ? rightStored.length : Math.min(limitPerDirection, rightStored.length);
+
+    console.log(`[BRUTAL] Found ${leftStored.length} total LEFT pairs, returning worst ${leftLimitText}:`);
+    loggedLeft.forEach((pair, i) => {
+        console.log(`  L${i+1}. "${pair.pairKey}" AWPM: ${pair.awpm.toFixed(2)}`);
+    });
+    console.log(`[BRUTAL] Found ${rightStored.length} total RIGHT pairs, returning worst ${rightLimitText}:`);
+    loggedRight.forEach((pair, i) => {
+        console.log(`  R${i+1}. "${pair.pairKey}" AWPM: ${pair.awpm.toFixed(2)}`);
+    });
+
+    return { left, right };
 }
 
 /**
@@ -408,15 +492,137 @@ function getRandomWords(wordsArray, count) {
                 selectedWord = wordsArray[randomIndex];
             }
             
-            // Avoid repeating the same word
-            if (selectedWord === lastWord && wordsArray.length > 1) {
-                continue;
-            }
+            // Do not early-skip duplicates here in advanced modes (hard/brutal).
+            // We'll handle duplicates contextually (e.g., prefer x->y if y === lastWord).
             
             // Check if this word is from longestUntypedWords
             const isLongestUntyped = longestUntypedWords.includes(selectedWord);
             
             if (hardMode && !isLongestUntyped) {
+                if (mode === 'brutal') {
+                    // Brutal mode: x -> y -> z where y is selectedWord
+                    console.log(`[BRUTAL] Processing word: "${selectedWord}"`);
+                    const wordAwpm = words[selectedWord] ? words[selectedWord].awpm || 0 : 0;
+                    const { left, right } = getWorstPairsForWordBothDirections(selectedWord, wordAwpm, 5);
+                    let leftPair = null;
+                    let rightPair = null;
+                    if (left.length > 0) {
+                        const leftFiltered = left.filter(p => p.word1 !== lastWord);
+                        if (leftFiltered.length > 0) {
+                            leftPair = leftFiltered[Math.floor(Math.random() * leftFiltered.length)];
+                        } else {
+                            // Avoid starting with a duplicate of lastWord; no valid left pair
+                            console.log(`[BRUTAL] No LEFT pair available without duplicating last word`);
+                            leftPair = null;
+                        }
+                    }
+                    if (right.length > 0) {
+                        rightPair = right[Math.floor(Math.random() * right.length)];
+                    }
+                    if (leftPair) {
+                        console.log(`[BRUTAL] Selected LEFT pair: "${leftPair.pairKey}" AWPM: ${leftPair.awpm.toFixed(2)}`);
+                    }
+                    if (rightPair) {
+                        console.log(`[BRUTAL] Selected RIGHT pair: "${rightPair.pairKey}" AWPM: ${rightPair.awpm.toFixed(2)}`);
+                    }
+                    if (leftPair && rightPair) {
+                        if (i + 2 < count) {
+                            console.log(`[BRUTAL] Emitting triple: ${leftPair.word1} -> ${selectedWord} -> ${rightPair.word2}`);
+                            randomWords.push(leftPair.word1);
+                            randomWords.push(selectedWord);
+                            randomWords.push(rightPair.word2);
+                            lastWord = rightPair.word2;
+                            i += 3;
+                        } else if (i + 1 < count) {
+                            // Two slots remain; avoid boundary duplicate if y === lastWord
+                            if (selectedWord === lastWord) {
+                                console.log('[BRUTAL] Two slots; y equals last word; using x -> y');
+                                randomWords.push(leftPair.word1);
+                                randomWords.push(selectedWord);
+                                lastWord = selectedWord;
+                                i += 2;
+                            } else {
+                                // Randomly choose between x -> y and y -> z
+                                if (Math.random() < 0.5) {
+                                    console.log('[BRUTAL] Two slots; chose x -> y');
+                                    randomWords.push(leftPair.word1);
+                                    randomWords.push(selectedWord);
+                                    lastWord = selectedWord;
+                                } else {
+                                    console.log('[BRUTAL] Two slots; chose y -> z');
+                                    randomWords.push(selectedWord);
+                                    randomWords.push(rightPair.word2);
+                                    lastWord = rightPair.word2;
+                                }
+                                i += 2;
+                            }
+                        } else {
+                            // One slot remain; avoid duplicate y
+                            if (selectedWord === lastWord) {
+                                console.log('[BRUTAL] One slot; y duplicates last word; reselecting');
+                                continue;
+                            } else {
+                                console.log('[BRUTAL] One slot; adding y');
+                                randomWords.push(selectedWord);
+                                lastWord = selectedWord;
+                                i += 1;
+                            }
+                        }
+                        continue;
+                    } else if (leftPair) {
+                        if (i + 1 < count) {
+                            console.log(`[BRUTAL] Left only; emitting x -> y: ${leftPair.word1} -> ${selectedWord}`);
+                            randomWords.push(leftPair.word1);
+                            randomWords.push(selectedWord);
+                            lastWord = selectedWord;
+                            i += 2;
+                        } else {
+                            // One slot remain; avoid duplicate y
+                            if (selectedWord === lastWord) {
+                                console.log('[BRUTAL] One slot; y duplicates last word; reselecting');
+                                continue;
+                            } else {
+                                console.log('[BRUTAL] One slot; adding y');
+                                randomWords.push(selectedWord);
+                                lastWord = selectedWord;
+                                i += 1;
+                            }
+                        }
+                        continue;
+                    } else if (rightPair) {
+                        if (i + 1 < count) {
+                            // Avoid placing y first if it's equal to lastWord
+                            if (selectedWord === lastWord) {
+                                console.log('[BRUTAL] Two slots; y duplicates last word; reselecting');
+                                continue;
+                            } else {
+                                console.log(`[BRUTAL] Right only; emitting y -> z: ${selectedWord} -> ${rightPair.word2}`);
+                                randomWords.push(selectedWord);
+                                randomWords.push(rightPair.word2);
+                                lastWord = rightPair.word2;
+                                i += 2;
+                            }
+                        } else {
+                            if (selectedWord === lastWord) {
+                                console.log('[BRUTAL] One slot; y duplicates last word; reselecting');
+                                continue;
+                            } else {
+                                console.log('[BRUTAL] One slot; adding y');
+                                randomWords.push(selectedWord);
+                                lastWord = selectedWord;
+                                i += 1;
+                            }
+                        }
+                        continue;
+                    } else {
+                        // No pairs in top 5; fall back to single
+                        console.log('[BRUTAL] No pairs in top 5; adding single y');
+                        randomWords.push(selectedWord);
+                        lastWord = selectedWord;
+                        i += 1;
+                        continue;
+                    }
+                }
                 console.log(`[HARD MODE] Processing word: "${selectedWord}" (not from longest untyped)`);
                 // Get the word's AWPM
                 const wordAwpm = words[selectedWord] ? words[selectedWord].awpm || 0 : 0;
@@ -1406,19 +1612,24 @@ window.onload = function() {
     initializeFocusWordsContainer();
     initializeLongestUntypedChanceContainer(); // Add this line
     
-    // Initialize hard mode toggle
-    const hardModeToggle = document.getElementById('hardModeToggle');
-    hardModeToggle.checked = hardMode;
-    hardModeToggle.addEventListener('change', function() {
-        hardMode = this.checked;
-        localStorage.setItem('hardMode', hardMode.toString());
-        console.log(`[HARD MODE] Toggled to: ${hardMode ? 'ON' : 'OFF'}`);
-        if (hardMode) {
-            console.log(`[HARD MODE] Total word pairs tracked: ${Object.keys(wordPairs).length}`);
-        }
-        displayWords();  // Refresh the word display
-        document.getElementById('wordInput').focus();
-    });
+    // Initialize mode dropdown (normal | hard | brutal)
+    const modeSelect = document.getElementById('modeSelect');
+    if (modeSelect) {
+        modeSelect.value = mode;
+        modeSelect.addEventListener('change', function() {
+            mode = this.value;
+            hardMode = mode !== 'normal';
+            localStorage.setItem('mode', mode);
+            // keep legacy key for backward compatibility
+            localStorage.setItem('hardMode', hardMode.toString());
+            console.log(`[MODE] Switched to: ${mode.toUpperCase()}`);
+            if (hardMode) {
+                console.log(`[MODE] Total word pairs tracked: ${Object.keys(wordPairs).length}`);
+            }
+            displayWords();  // Refresh the word display
+            document.getElementById('wordInput').focus();
+        });
+    }
     
     checkIfDefaultWordSet();
 
@@ -1458,7 +1669,7 @@ window.onload = function() {
 // Initial display of words and statistics
 console.log('=== CosmicType Initialized ===');
 console.log(`[STARTUP] Word list size: ${wordArray.length} words`);
-console.log(`[STARTUP] Hard mode: ${hardMode ? 'ON' : 'OFF'}`);
+console.log(`[STARTUP] Mode: ${mode.toUpperCase()} (${hardMode ? 'ADV' : 'NORMAL'})`);
 console.log(`[STARTUP] Word pairs tracked: ${Object.keys(wordPairs).length}`);
 console.log(`[STARTUP] Focus words: ${slowWordsNum}`);
 console.log(`[STARTUP] Longest untyped chance: ${longestUntypedWordChance}%`);
