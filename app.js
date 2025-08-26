@@ -679,6 +679,10 @@ function getRandomWords(wordsArray, count) {
                 }
             } else {
                 // Longest untyped word or not in hard mode - add normally
+                // In advanced modes, avoid placing a single longest-untyped word if it equals lastWord
+                if (isLongestUntyped && selectedWord === lastWord) {
+                    continue; // resample to prevent immediate duplicate y-only
+                }
                 if (isLongestUntyped) {
                     console.log(`[HARD MODE] Word "${selectedWord}" is from longest untyped, adding single word`);
                 }
