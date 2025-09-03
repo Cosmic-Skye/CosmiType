@@ -25,6 +25,7 @@ const weightedWords = false;  // Flag to determine if word length should affect 
 
 // Initialize an object to store word statistics
 let words = {};
+const HISTORY_LIMIT = 10; // Keep only last 10 timing entries
 wordArray.forEach(word => {
     words[word] = {times: [], correct: 0, total: 0, awpm: 0};
 });
@@ -33,31 +34,40 @@ wordArray.forEach(word => {
 let storedWords = localStorage.getItem('words');
 if (storedWords) {
     words = JSON.parse(storedWords);
-    // Ensure all words have the awpm field and calculate if missing
+    // Trim histories and ensure AWPM field exists (calculate if missing)
     for (let word in words) {
-        if (words[word].awpm === undefined) {
-            // Calculate AWPM for existing data
-            let wordWeight = weightedWords ? word.length / 5 : 1;
-            let {times, lastTenCorrect} = words[word];
-            let lastTenTimes = times.slice(-10);
-            
+        const data = words[word] || {};
+        // Sanitize and trim timing history to last 10
+        if (!Array.isArray(data.times)) data.times = [];
+        data.times = data.times.slice(-HISTORY_LIMIT);
+        // Sanitize and trim lastTenCorrect to last 10
+        if (!Array.isArray(data.lastTenCorrect)) data.lastTenCorrect = [];
+        data.lastTenCorrect = data.lastTenCorrect.slice(-HISTORY_LIMIT);
+
+        // Ensure numeric counters exist
+        if (typeof data.correct !== 'number') data.correct = 0;
+        if (typeof data.total !== 'number') data.total = 0;
+
+        // Ensure AWPM field exists and calculate if missing
+        if (data.awpm === undefined) {
+            const wordWeight = weightedWords ? word.length / 5 : 1;
+            const lastTenTimes = data.times;
             if (lastTenTimes.length === 0) {
-                words[word].awpm = 0;
+                data.awpm = 0;
             } else {
-                let totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
-                let lastTenCorrectAttempts = lastTenCorrect ? lastTenCorrect.reduce((a, b) => a + b, 0) : 0;
-                let attemptsLastTen = lastTenTimes.length;
-                let errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
-                
-                if (totalLastTenTimeInMinutes > 0) {
-                    words[word].awpm = Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes));
-                } else {
-                    words[word].awpm = 0;
-                }
+                const totalLastTenTimeInMinutes = lastTenTimes.reduce((a, b) => a + b, 0) / 60000;
+                const lastTenCorrectAttempts = data.lastTenCorrect ? data.lastTenCorrect.reduce((a, b) => a + b, 0) : 0;
+                const attemptsLastTen = lastTenTimes.length;
+                const errorsInLastTenAttempts = attemptsLastTen - lastTenCorrectAttempts;
+                data.awpm = totalLastTenTimeInMinutes > 0
+                    ? Math.max(0, ((wordWeight * attemptsLastTen) / totalLastTenTimeInMinutes) - (errorsInLastTenAttempts / totalLastTenTimeInMinutes))
+                    : 0;
             }
         }
+
+        words[word] = data;
     }
-    // Save the updated words with AWPM calculated
+    // Save the trimmed/sanitized words
     localStorage.setItem('words', JSON.stringify(words));
 }
 
@@ -76,11 +86,20 @@ function initializeWordPairs() {
     for (let pairKey in wordPairs) {
         let [word1, word2] = pairKey.split('->');
         if (validWords.has(word1) && validWords.has(word2)) {
-            newPairs[pairKey] = wordPairs[pairKey];
+            const pairData = wordPairs[pairKey] || {};
+            // Trim timing history and lastTenCorrect to last 10
+            if (!Array.isArray(pairData.times)) pairData.times = [];
+            pairData.times = pairData.times.slice(-HISTORY_LIMIT);
+            if (!Array.isArray(pairData.lastTenCorrect)) pairData.lastTenCorrect = [];
+            pairData.lastTenCorrect = pairData.lastTenCorrect.slice(-HISTORY_LIMIT);
+            // Ensure counters
+            if (typeof pairData.correct !== 'number') pairData.correct = 0;
+            if (typeof pairData.total !== 'number') pairData.total = 0;
             // Ensure awpm field exists for old data
-            if (newPairs[pairKey].awpm === undefined) {
-                newPairs[pairKey].awpm = 0;
+            if (pairData.awpm === undefined) {
+                pairData.awpm = 0;
             }
+            newPairs[pairKey] = pairData;
             preservedCount++;
         } else {
             removedCount++;
@@ -779,6 +798,10 @@ function checkInput(value) {
 
         // Update word statistics
         words[correctWord].times.push(wordTime);
+        // Keep only last 10 timing entries for the word
+        if (words[correctWord].times.length > HISTORY_LIMIT) {
+            words[correctWord].times = words[correctWord].times.slice(-HISTORY_LIMIT);
+        }
         words[correctWord].total++;
 
         // Update the word buffer
@@ -837,6 +860,10 @@ function checkInput(value) {
             
             // Update pair statistics
             wordPairs[pairKey].times.push(pairTime);
+            // Keep only last 10 timing entries for the pair
+            if (wordPairs[pairKey].times.length > HISTORY_LIMIT) {
+                wordPairs[pairKey].times = wordPairs[pairKey].times.slice(-HISTORY_LIMIT);
+            }
             wordPairs[pairKey].total++;
             
             // Track correctness
