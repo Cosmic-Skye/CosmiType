@@ -818,6 +818,45 @@ function checkInput(value) {
             if (typedWord.length > 0) {
                 showErrorWord(typedWord);
             }
+
+            // If the mistyped word itself is in the word list, also
+            // record an incorrect attempt for that word and update its AWPM
+            if (Object.prototype.hasOwnProperty.call(words, typedWord)) {
+                const typedEntry = words[typedWord];
+                if (typedEntry && typeof typedEntry === 'object') {
+                    // Record this attempt's time for the mistyped word
+                    typedEntry.times.push(wordTime);
+                    if (typedEntry.times.length > HISTORY_LIMIT) {
+                        typedEntry.times = typedEntry.times.slice(-HISTORY_LIMIT);
+                    }
+                    typedEntry.total++;
+
+                    if (!typedEntry.lastTenCorrect) {
+                        typedEntry.lastTenCorrect = [];
+                    }
+                    if (typedEntry.lastTenCorrect.length >= 10) {
+                        typedEntry.lastTenCorrect.shift();
+                    }
+                    // Mark as incorrect for the mistyped word
+                    typedEntry.lastTenCorrect.push(0);
+
+                    // Recalculate AWPM for the mistyped word
+                    let typedWeight = weightedWords ? typedWord.length / 5 : 1;
+                    let typedLastTenTimes = typedEntry.times.slice(-10);
+                    let typedTotalTimeMins = typedLastTenTimes.reduce((a, b) => a + b, 0) / 60000;
+                    let typedLastTenCorrect = typedEntry.lastTenCorrect.reduce((a, b) => a + b, 0);
+                    let typedAttempts = typedLastTenTimes.length;
+                    let typedErrors = typedAttempts - typedLastTenCorrect;
+
+                    if (typedAttempts === 0) {
+                        typedEntry.awpm = 0;
+                    } else if (typedTotalTimeMins > 0) {
+                        typedEntry.awpm = Math.max(0, ((typedWeight * typedAttempts) / typedTotalTimeMins) - (typedErrors / typedTotalTimeMins));
+                    } else {
+                        typedEntry.awpm = 0;
+                    }
+                }
+            }
         }
 
         // Update last ten correct attempts
